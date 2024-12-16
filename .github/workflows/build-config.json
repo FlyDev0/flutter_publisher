@@ -1,0 +1,23 @@
+{
+  "app_name": "Flutter Publisher",
+  "version_format": "v${major}.${minor}.${patch}",
+  "build_targets": {
+    "windows": {
+      "enabled": true,
+      "artifact_name": "flutter_publisher_windows.zip",
+      "build_command": "flutter build windows --release"
+    }
+  },
+  "release": {
+    "draft": false,
+    "prerelease": false,
+    "generate_release_notes": true
+  },
+  "notifications": {
+    "slack": {
+      "enabled": true,
+      "on_success": true,
+      "on_failure": true
+    }
+  }
+}

@@ -3,36 +3,104 @@ name: Flutter CI/CD
 on:
   push:
     branches: [ master, development ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ master, development ]
 
-jobs:
-  build:
-    runs-on: windows-latest
+env:
+  FLUTTER_VERSION: '3.19.0'
 
+jobs:
+  test:
+    name: اختبار وتحليل
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
       
-      - name: Set up Flutter
+      - name: إعداد Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
       
-      - name: Install dependencies
+      - name: تثبيت التبعيات
         run: flutter pub get
         
-      - name: Analyze project source
+      - name: تحليل الكود
         run: flutter analyze
         
-      - name: Run tests
+      - name: تشغيل الاختبارات
         run: flutter test
+
+  build:
+    name: بناء التطبيق
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: إعداد Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+      
+      - name: تثبيت التبعيات
+        run: flutter pub get
         
-      - name: Build Windows
+      - name: بناء نسخة Windows
         run: flutter build windows --release
         
-      - name: Upload Windows Build
+      - name: ضغط ملفات البناء
+        run: |
+          cd build/windows/runner/Release
+          7z a -tzip ../../../flutter_publisher_windows.zip *
+        
+      - name: تحميل نسخة Windows
         uses: actions/upload-artifact@v3
         with:
           name: windows-build
-          path: build/windows/runner/Release/
+          path: build/flutter_publisher_windows.zip
+
+  release:
+    name: نشر الإصدار
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: تحميل نسخة Windows
+        uses: actions/download-artifact@v3
+        with:
+          name: windows-build
+          
+      - name: إنشاء ملاحظات الإصدار
+        id: release_notes
+        run: |
+          echo "التغييرات في هذا الإصدار:" > release_notes.md
+          echo "" >> release_notes.md
+          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> release_notes.md
+          
+      - name: نشر الإصدار
+        uses: softprops/action-gh-release@v1
+        with:
+          files: flutter_publisher_windows.zip
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: إرسال الإشعارات
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: إرسال إشعار نجاح النشر
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_MESSAGE: 'تم نشر إصدار جديد بنجاح! 🚀'
