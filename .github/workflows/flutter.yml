@@ -7,16 +7,21 @@ on:
       - 'v*'
   pull_request:
     branches: [ master, development ]
+  schedule:
+    - cron: '0 0 * * *'  # تشغيل يومي
 
 env:
   FLUTTER_VERSION: '3.19.0'
+  JAVA_VERSION: '17'
 
 jobs:
-  test:
-    name: اختبار وتحليل
-    runs-on: windows-latest
+  quality:
+    name: فحص الجودة
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       
       - name: إعداد Flutter
         uses: subosito/flutter-action@v2
@@ -25,18 +30,46 @@ jobs:
           channel: 'stable'
       
       - name: تثبيت التبعيات
-        run: flutter pub get
-        
+        run: |
+          flutter pub get
+          flutter pub global activate coverage
+          
       - name: تحليل الكود
         run: flutter analyze
         
-      - name: تشغيل الاختبارات
-        run: flutter test
+      - name: فحص التنسيق
+        run: dart format --set-exit-if-changed .
+        
+      - name: تشغيل الاختبارات مع التغطية
+        run: |
+          flutter test --coverage
+          lcov --remove coverage/lcov.info '**/*.g.dart' '**/*.freezed.dart' -o coverage/lcov.info
+          
+      - name: تحميل تقرير التغطية
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage/lcov.info
+          
+      - name: فحص الأمان
+        uses: github/codeql-action/analyze@v2
+        
+      - name: فحص التبعيات
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   build:
     name: بناء التطبيق
-    needs: test
-    runs-on: windows-latest
+    needs: quality
+    strategy:
+      matrix:
+        os: [windows-latest]
+        include:
+          - os: windows-latest
+            build_target: windows
+            artifact_name: flutter_publisher_windows.zip
+            
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       
@@ -49,20 +82,29 @@ jobs:
       - name: تثبيت التبعيات
         run: flutter pub get
         
-      - name: بناء نسخة Windows
-        run: flutter build windows --release
+      - name: بناء التطبيق
+        run: flutter build ${{ matrix.build_target }} --release
         
-      - name: ضغط ملفات البناء
+      - name: ضغط الملفات
         run: |
-          cd build/windows/runner/Release
-          7z a -tzip ../../../flutter_publisher_windows.zip *
+          cd build/${{ matrix.build_target }}/runner/Release
+          7z a -tzip ../../../${{ matrix.artifact_name }} *
         
-      - name: تحميل نسخة Windows
+      - name: قياس حجم التطبيق
+        id: app_size
+        run: |
+          echo "size=$(stat -f%z build/${{ matrix.artifact_name }})" >> $GITHUB_OUTPUT
+          
+      - name: فحص الأداء
+        run: |
+          flutter run --profile --trace-startup
+          
+      - name: تحميل النسخة
         uses: actions/upload-artifact@v3
         with:
-          name: windows-build
-          path: build/flutter_publisher_windows.zip
-
+          name: ${{ matrix.build_target }}-build
+          path: build/${{ matrix.artifact_name }}
+          
   release:
     name: نشر الإصدار
     needs: build
@@ -70,37 +112,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: تحميل نسخة Windows
-        uses: actions/download-artifact@v3
         with:
-          name: windows-build
+          fetch-depth: 0
           
+      - name: تحميل النسخ
+        uses: actions/download-artifact@v3
+        
       - name: إنشاء ملاحظات الإصدار
         id: release_notes
         run: |
-          echo "التغييرات في هذا الإصدار:" > release_notes.md
+          echo "# التغييرات في هذا الإصدار" > release_notes.md
           echo "" >> release_notes.md
-          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> release_notes.md
+          echo "## الميزات الجديدة" >> release_notes.md
+          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" --grep="^feat:" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## الإصلاحات" >> release_notes.md
+          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" --grep="^fix:" >> release_notes.md
           
       - name: نشر الإصدار
         uses: softprops/action-gh-release@v1
         with:
-          files: flutter_publisher_windows.zip
+          files: "**/*.zip"
           body_path: release_notes.md
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
     name: إرسال الإشعارات
-    needs: release
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [quality, release]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: إرسال إشعار نجاح النشر
+      - name: حالة البناء
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_MESSAGE: 'تم نشر إصدار جديد بنجاح! 🚀'
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 'نتيجة البناء والنشر'
+          SLACK_MESSAGE: |
+            الحالة: ${{ job.status == 'success' && '✅ نجاح' || '❌ فشل' }}
+            الفرع: ${{ github.ref }}
+            المؤلف: ${{ github.actor }}
+            الرابط: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

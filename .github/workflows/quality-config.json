@@ -1,0 +1,31 @@
+{
+  "code_quality": {
+    "flutter_analyze": {
+      "fatal_warnings": true,
+      "fatal_infos": false
+    },
+    "flutter_test": {
+      "coverage": true,
+      "min_coverage": 80,
+      "exclude_files": [
+        "**/*.g.dart",
+        "**/*.freezed.dart"
+      ]
+    }
+  },
+  "performance": {
+    "app_size": {
+      "max_size_mb": 100,
+      "check_enabled": true
+    },
+    "startup_time": {
+      "max_seconds": 2,
+      "check_enabled": true
+    }
+  },
+  "security": {
+    "dependency_scanning": true,
+    "code_scanning": true,
+    "secret_scanning": true
+  }
+}
