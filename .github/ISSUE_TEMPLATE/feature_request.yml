@@ -1,0 +1,36 @@
+name: طلب ميزة جديدة
+description: اقترح فكرة لهذا المشروع
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        شكراً لمساهمتك في تحسين المشروع!
+        
+  - type: textarea
+    attributes:
+      label: الميزة المطلوبة
+      description: وصف واضح وموجز للميزة التي تريدها
+    validations:
+      required: true
+      
+  - type: textarea
+    attributes:
+      label: المشكلة المرتبطة
+      description: هل طلبك مرتبط بمشكلة؟ يرجى وصفها
+    validations:
+      required: false
+      
+  - type: textarea
+    attributes:
+      label: الحل المقترح
+      description: وصف ما تريد أن يحدث
+    validations:
+      required: true
+      
+  - type: textarea
+    attributes:
+      label: البدائل
+      description: وصف أي حلول أو ميزات بديلة فكرت فيها
+    validations:
+      required: false

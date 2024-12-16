@@ -1,0 +1,48 @@
+name: تقرير مشكلة
+description: أبلغ عن مشكلة لمساعدتنا في تحسين التطبيق
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        شكراً لأخذ الوقت للإبلاغ عن المشكلة!
+  
+  - type: textarea
+    attributes:
+      label: وصف المشكلة
+      description: وصف واضح وموجز للمشكلة
+    validations:
+      required: true
+      
+  - type: textarea
+    attributes:
+      label: خطوات التكرار
+      description: كيف يمكن تكرار المشكلة؟
+      placeholder: |
+        1. اذهب إلى '...'
+        2. انقر على '....'
+        3. قم بالتمرير إلى '....'
+        4. شاهد الخطأ
+    validations:
+      required: true
+      
+  - type: textarea
+    attributes:
+      label: السلوك المتوقع
+      description: وصف واضح وموجز لما كنت تتوقع حدوثه
+    validations:
+      required: true
+      
+  - type: input
+    attributes:
+      label: إصدار التطبيق
+      description: ما هو إصدار التطبيق الذي تستخدمه؟
+    validations:
+      required: true
+      
+  - type: input
+    attributes:
+      label: نظام التشغيل
+      description: ما هو نظام التشغيل الذي تستخدمه؟
+    validations:
+      required: true
